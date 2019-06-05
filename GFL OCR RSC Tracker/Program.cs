@@ -15,39 +15,45 @@ namespace GFL_OCR_RSC_Tracker
 {
     class RSCTracker
     {
+        public static bool LOG=false;
         [STAThread]
         static void Main(string[] args)
         {
+            LOG = args.Contains("log");
+
             Application.EnableVisualStyles();
-            int[] values = null;
-            bool accepted=false;
+            int[] values;
+            bool accepted = false;
             while (!accepted)
             {
-
+                values = null;
                 while (values == null)
                 {
                     BoundsCapturer b = new BoundsCapturer();
                     b.CreateFinder();
-                    Console.WriteLine("starting parsing");
+                    if (LOG) Console.WriteLine("starting parsing");
                     values = ParseValues(GetValuesFromImg());
                     if (values == null) Console.WriteLine("Couldn't find values, reopening capture window");
                 }
-                
-                Array.ForEach(values, x =>
+                if (LOG)
                 {
-                    Console.Write(x + " ");
-                });
-                Console.WriteLine();
-                DialogResult r= MessageBox.Show("Manpower\tAmmo\t\tRations\t\tParts\n" + values[0] + "\t\t" + values[1] + "\t\t" + values[2] + "\t\t" + values[3]+"\n\nDo these values look correct?", "Value Confirmation",MessageBoxButtons.YesNoCancel);
+                    Array.ForEach(values, x =>
+                    {
+                        Console.Write(x + " ");
+                    });
+                    Console.WriteLine();
+                }
+
+                DialogResult r = MessageBox.Show("Manpower\tAmmo\t\tRations\t\tParts\n" + values[0] + "\t\t" + values[1] + "\t\t" + values[2] + "\t\t" + values[3]
+                    + "\n\nDo these values look correct?", "Value Confirmation", MessageBoxButtons.YesNoCancel);
                 if (r == DialogResult.Cancel) Environment.Exit(0);
-                if (r == DialogResult.No) values = null;
                 accepted = r == DialogResult.Yes;
             }
         }
 
         private static int[] ParseValues(string a)
         {
-            Console.WriteLine(a);
+            if (LOG) Console.WriteLine("Tesseract saw: "+a);
             Regex p = new Regex(@"(\d{1,6})\s(\d{1,6})\s(\d{1,6})\s(\d{1,6})");
             if (!p.IsMatch(a)) return null;
             Match m = p.Match(a);
@@ -62,13 +68,11 @@ namespace GFL_OCR_RSC_Tracker
         private static string GetValuesFromImg()
         {
             var testImagePath = "Capture.png";
-            StringBuilder FinalText = new StringBuilder();
-
             var engine = new TesseractEngine(@"./tessdata", "eng", EngineMode.Default);
             var img = Pix.LoadFromFile(testImagePath);
             var page = engine.Process(img);
             var text = page.GetText();
-            Console.WriteLine("Mean confidence: {0}", page.GetMeanConfidence());
+            if (LOG) Console.WriteLine("Mean confidence: {0}", page.GetMeanConfidence());
 
             return text.Replace('\n', ' ').Replace("  ", " ");
         }
@@ -77,11 +81,11 @@ namespace GFL_OCR_RSC_Tracker
     class BoundsCapturer
     {
         private Rectangle generatedBounds;
-        public bool hangOnCapturedBound { get; set; }
+        public bool HangOnCapturedBound { get; set; }
 
         public BoundsCapturer(bool hangOnCapturedBound = false)
         {
-            this.hangOnCapturedBound = hangOnCapturedBound;
+            this.HangOnCapturedBound = hangOnCapturedBound;
         }
 
         public void CreateFinder()
@@ -97,15 +101,15 @@ namespace GFL_OCR_RSC_Tracker
             boundsFinder.FormClosing += GetFormBounds;
             Application.Run(boundsFinder);
             CaptureArea();
-            if (hangOnCapturedBound) ShowCapture();
-            Console.WriteLine(generatedBounds);
+            if (HangOnCapturedBound) ShowCapture();
+            if (RSCTracker.LOG) Console.WriteLine(generatedBounds);
         }
         public void RecaptureArea()
         {
             if (generatedBounds != null)
             {
                 CaptureArea();
-                if (hangOnCapturedBound) ShowCapture();
+                if (HangOnCapturedBound) ShowCapture();
             }
             else
             {
@@ -118,10 +122,8 @@ namespace GFL_OCR_RSC_Tracker
             Bitmap captureBmp = new Bitmap(generatedBounds.Width, generatedBounds.Height);
             Graphics g = Graphics.FromImage(captureBmp);
             g.CopyFromScreen(generatedBounds.X, generatedBounds.Y, 0, 0, generatedBounds.Size);
-
-
+            
             //butchers this fucking image
-
             for (int x = 0; x < captureBmp.Width; x++)
             {
                 for (int y = 0; y < captureBmp.Height; y++)
