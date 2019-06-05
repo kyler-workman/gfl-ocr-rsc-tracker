@@ -12,23 +12,38 @@ namespace GFL_OCR_RSC_Tracker
 {
     class RSCTracker
     {
-        Rectangle generatedBounds;
-
         [STAThread]
         static void Main(string[] args)
         {
-            RSCTracker t = new RSCTracker();
             Application.EnableVisualStyles();
+            BoundsCapturer b = new BoundsCapturer();
+            b.DoYourShit();
+        }
+
+    }
+
+    class BoundsCapturer
+    {
+        Rectangle generatedBounds;
+        bool hangOnCapturedBound;
+
+        public BoundsCapturer(bool hangOnCapturedBound=false)
+        {
+            this.hangOnCapturedBound = hangOnCapturedBound;
+        }
+
+        public void DoYourShit()
+        {
             var boundsFinder = new Form
             {
                 BackColor = Color.Firebrick,
                 TransparencyKey = Color.Firebrick,
                 Text = "Drag this to capture bounds"
             };
-            boundsFinder.FormClosing += t.GetFormBounds;
+            boundsFinder.FormClosing += GetFormBounds;
             Application.Run(boundsFinder);
-            //t.ShowCapture();
-            t.CaptureArea();
+            CaptureArea();
+            if (hangOnCapturedBound) ShowCapture();
         }
 
         private void CaptureArea()
@@ -37,7 +52,6 @@ namespace GFL_OCR_RSC_Tracker
             Graphics g = Graphics.FromImage(captureBmp);
             g.CopyFromScreen(generatedBounds.X, generatedBounds.Y, 0, 0, generatedBounds.Size);
             captureBmp.Save("Capture.png", ImageFormat.Png);
-            Console.WriteLine("done");
         }
 
         private void ShowCapture()
@@ -57,5 +71,6 @@ namespace GFL_OCR_RSC_Tracker
             Form finder = (Form)sender;
             generatedBounds = finder.RectangleToScreen(finder.ClientRectangle);
         }
+
     }
 }
