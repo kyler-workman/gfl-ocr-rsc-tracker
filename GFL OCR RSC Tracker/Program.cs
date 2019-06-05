@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -18,19 +19,47 @@ namespace GFL_OCR_RSC_Tracker
         static void Main(string[] args)
         {
             Application.EnableVisualStyles();
-            BoundsCapturer b = new BoundsCapturer();
-            b.CreateFinder();
-            while (Math.PI > Math.E)
+            int[] values = null;
+            bool accepted=false;
+            while (!accepted)
             {
-                Console.WriteLine("starting parsing");
-                Console.WriteLine(ReadAndParse());
-                Console.WriteLine("Press a key to repeat");
-                Console.ReadKey();
-                b.RecaptureArea();
+
+                while (values == null)
+                {
+                    BoundsCapturer b = new BoundsCapturer();
+                    b.CreateFinder();
+                    Console.WriteLine("starting parsing");
+                    values = ParseValues(GetValuesFromImg());
+                    if (values == null) Console.WriteLine("Couldn't find values, reopening capture window");
+                }
+                
+                Array.ForEach(values, x =>
+                {
+                    Console.Write(x + " ");
+                });
+                Console.WriteLine();
+                DialogResult r= MessageBox.Show("Manpower\tAmmo\t\tRations\t\tParts\n" + values[0] + "\t\t" + values[1] + "\t\t" + values[2] + "\t\t" + values[3]+"\n\nDo these values look correct?", "Value Confirmation",MessageBoxButtons.YesNoCancel);
+                if (r == DialogResult.Cancel) Environment.Exit(0);
+                if (r == DialogResult.No) values = null;
+                accepted = r == DialogResult.Yes;
             }
         }
 
-        private static string ReadAndParse()
+        private static int[] ParseValues(string a)
+        {
+            Console.WriteLine(a);
+            Regex p = new Regex(@"(\d{1,6})\s(\d{1,6})\s(\d{1,6})\s(\d{1,6})");
+            if (!p.IsMatch(a)) return null;
+            Match m = p.Match(a);
+            int[] ret = new int[4];
+            for (int i = 1; i <= 4; i++)
+            {
+                ret[i - 1] = int.Parse(m.Groups[i].Value);
+            }
+            return ret;
+        }
+
+        private static string GetValuesFromImg()
         {
             var testImagePath = "Capture.png";
             StringBuilder FinalText = new StringBuilder();
@@ -41,7 +70,7 @@ namespace GFL_OCR_RSC_Tracker
             var text = page.GetText();
             Console.WriteLine("Mean confidence: {0}", page.GetMeanConfidence());
 
-            return text;
+            return text.Replace('\n', ' ').Replace("  ", " ");
         }
     }
 
