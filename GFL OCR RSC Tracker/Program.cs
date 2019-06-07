@@ -10,19 +10,29 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Tesseract;
+using Newtonsoft.Json;
+using Google.Apis.Sheets.v4;
+using Google.Apis.Auth.OAuth2;
+using System.IO;
+using Google.Apis.Util.Store;
+using Google.Apis.Services;
+using Google.Apis.Sheets.v4.Data;
 
 namespace GFL_OCR_RSC_Tracker
 {
     class RSCTracker
     {
-        public static bool LOG=false;
+        public static bool LOG = false;
+        public static TrackerConfig cfg;
+
         [STAThread]
         static void Main(string[] args)
         {
             LOG = args.Contains("log");
+            cfg = TrackerConfig.GetConfig();
 
             Application.EnableVisualStyles();
-            int[] values;
+            int[] values = null;
             bool accepted = false;
             while (!accepted)
             {
@@ -33,7 +43,7 @@ namespace GFL_OCR_RSC_Tracker
                     b.CreateFinder();
                     if (LOG) Console.WriteLine("starting parsing");
                     values = ParseValues(GetValuesFromImg());
-                    if (values == null) Console.WriteLine("Couldn't find values, reopening capture window");
+                    if (values == null && LOG) Console.WriteLine("Couldn't find values, reopening capture window");
                 }
                 if (LOG)
                 {
@@ -49,11 +59,61 @@ namespace GFL_OCR_RSC_Tracker
                 if (r == DialogResult.Cancel) Environment.Exit(0);
                 accepted = r == DialogResult.Yes;
             }
+
+            var response = PushData(values);
+            if (LOG) Console.WriteLine(JsonConvert.SerializeObject(response,Formatting.Indented));
+        }
+
+        private static BatchUpdateValuesResponse PushData(int[] values, bool ignoredatevalidation = false)
+        {
+            SpreadSheetConnector conn = new SpreadSheetConnector(cfg.SpreadSheetId);
+            DateTime now = DateTime.Now;
+            if (!ignoredatevalidation && now < cfg.LastPushDate.AddDays(1).Date)
+            {
+                if (LOG) Console.WriteLine("Day has not passed, not writing to Sheet");
+                return null;
+            }
+
+            List<object> ToIn = new List<object>() { now.ToShortDateString() };
+            ToIn.AddRange(values.Cast<object>());
+            var response = conn.UpdateData(
+                cfg.SheetName,
+                cfg.PushToColumn,
+                cfg.LastPushLine+1,
+                new List<IList<object>>()
+                {
+                    ToIn
+                });
+            if (response.TotalUpdatedCells != null && response.TotalUpdatedCells > 0)
+            {
+                cfg.LastPushDate = now;
+                cfg.LastPushLine++;
+            }
+            cfg.UpdateConfig();
+            return response;
+        }
+
+        private static void TestWritingToSheets()
+        {
+            SpreadSheetConnector conn = new SpreadSheetConnector("1mnJfrsSXrCRLTrqeqdQ5b2uf05MZMp2bknHNTndgqqg");
+            Console.WriteLine(conn.UpdateData("TestSheet", "A", 1, new List<IList<object>>()
+            {
+                new List<object>()
+                {
+                    DateTime.Now,
+                    41
+                },
+                new List<object>()
+                {
+                    "test",
+                    42
+                }
+            }));
         }
 
         private static int[] ParseValues(string a)
         {
-            if (LOG) Console.WriteLine("Tesseract saw: "+a);
+            if (LOG) Console.WriteLine("Tesseract saw: " + a);
             Regex p = new Regex(@"(\d{1,6})\s(\d{1,6})\s(\d{1,6})\s(\d{1,6})");
             if (!p.IsMatch(a)) return null;
             Match m = p.Match(a);
@@ -85,7 +145,7 @@ namespace GFL_OCR_RSC_Tracker
 
         public BoundsCapturer(bool hangOnCapturedBound = false)
         {
-            this.HangOnCapturedBound = hangOnCapturedBound;
+            HangOnCapturedBound = hangOnCapturedBound;
         }
 
         public void CreateFinder()
@@ -94,9 +154,9 @@ namespace GFL_OCR_RSC_Tracker
             {
                 Width = 882,
                 Height = 103,
-                BackColor = Color.Firebrick,
-                TransparencyKey = Color.Firebrick,
-                Text = "Drag this to capture bounds, close to capture area, this can also be resized"
+                BackColor = System.Drawing.Color.Firebrick,
+                TransparencyKey = System.Drawing.Color.Firebrick,
+                Text = "Drag this over your main menu resource values, close to capture area, this can also be resized"
             };
             boundsFinder.FormClosing += GetFormBounds;
             Application.Run(boundsFinder);
@@ -122,19 +182,18 @@ namespace GFL_OCR_RSC_Tracker
             Bitmap captureBmp = new Bitmap(generatedBounds.Width, generatedBounds.Height);
             Graphics g = Graphics.FromImage(captureBmp);
             g.CopyFromScreen(generatedBounds.X, generatedBounds.Y, 0, 0, generatedBounds.Size);
-            
+
             //butchers this fucking image
             for (int x = 0; x < captureBmp.Width; x++)
             {
                 for (int y = 0; y < captureBmp.Height; y++)
                 {
-                    Color pixelColor = captureBmp.GetPixel(x, y);
+                    System.Drawing.Color pixelColor = captureBmp.GetPixel(x, y);
                     int value = pixelColor.R > 220 && pixelColor.B < 20 ? 255 : 0;
-                    Color newColor = Color.FromArgb(value, value, value);
+                    System.Drawing.Color newColor = System.Drawing.Color.FromArgb(value, value, value);
                     captureBmp.SetPixel(x, y, newColor);
                 }
             }
-
             captureBmp.Save("Capture.png", System.Drawing.Imaging.ImageFormat.Png);
         }
 
@@ -155,6 +214,5 @@ namespace GFL_OCR_RSC_Tracker
             Form finder = (Form)sender;
             generatedBounds = finder.RectangleToScreen(finder.ClientRectangle);
         }
-
     }
 }
