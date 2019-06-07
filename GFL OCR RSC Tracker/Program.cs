@@ -24,12 +24,22 @@ namespace GFL_OCR_RSC_Tracker
     class RSCTracker
     {
         public static bool LOG = false;
-        private static string STAR = "Best";
         public static TrackerConfig cfg;
+
+        public const bool KILLIMAGE = true;
 
         [STAThread]
         static void Main(string[] args)
         {
+            var waitHandle = new EventWaitHandle(false, EventResetMode.AutoReset, "GFL-OCR-RSC-Tracker", out bool createdNew);
+            var signaled = false;
+            
+            if (!createdNew)
+            {
+                waitHandle.Set();
+                return;
+            }
+
             LOG = args.Contains("log");
             cfg = TrackerConfig.GetConfig();
             BoundsCapturer b = new BoundsCapturer();
@@ -69,7 +79,10 @@ namespace GFL_OCR_RSC_Tracker
             TryWrite(null, null, b);
             adjutant.Start();
 
-            while (STAR == "Best");
+            do
+            {
+                signaled = waitHandle.WaitOne();
+            } while (!signaled);
         }
 
         private static void TryWrite(object sender, ElapsedEventArgs e, BoundsCapturer b)
@@ -232,7 +245,7 @@ namespace GFL_OCR_RSC_Tracker
             {
                 CaptureArea();
                 if (HangOnCapturedBound) ShowCapture();
-                return RSCTracker.ParseImageValues(RSCTracker.GetValuesFromImg());
+                return RSCTracker.ParseImageValues(RSCTracker.GetValuesFromImg(RSCTracker.KILLIMAGE));
             }
             else
             {
