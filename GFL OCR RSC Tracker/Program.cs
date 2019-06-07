@@ -17,12 +17,14 @@ using System.IO;
 using Google.Apis.Util.Store;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4.Data;
+using System.Timers;
 
 namespace GFL_OCR_RSC_Tracker
 {
     class RSCTracker
     {
         public static bool LOG = false;
+        private static string STAR = "Best";
         public static TrackerConfig cfg;
 
         [STAThread]
@@ -30,6 +32,7 @@ namespace GFL_OCR_RSC_Tracker
         {
             LOG = args.Contains("log");
             cfg = TrackerConfig.GetConfig();
+            BoundsCapturer b = new BoundsCapturer();
 
             Application.EnableVisualStyles();
             int[] values = null;
@@ -39,10 +42,9 @@ namespace GFL_OCR_RSC_Tracker
                 values = null;
                 while (values == null)
                 {
-                    BoundsCapturer b = new BoundsCapturer();
                     b.CreateFinder();
                     if (LOG) Console.WriteLine("starting parsing");
-                    values = ParseValues(GetValuesFromImg());
+                    values = b.GetValuesFromBound();
                     if (values == null && LOG) Console.WriteLine("Couldn't find values, reopening capture window");
                 }
                 if (LOG)
@@ -60,8 +62,27 @@ namespace GFL_OCR_RSC_Tracker
                 accepted = r == DialogResult.Yes;
             }
 
+            System.Timers.Timer adjutant = new System.Timers.Timer();
+            adjutant.Elapsed += (s, a) => TryWrite(s, a, b);
+            adjutant.Interval = 1000 * 60 * 60 * 1; //60 minute interval
+
+            TryWrite(null, null, b);
+            adjutant.Start();
+
+            while (STAR == "Best");
+        }
+
+        private static void TryWrite(object sender, ElapsedEventArgs e, BoundsCapturer b)
+        {
+            int[] values = b.GetValuesFromBound();
+            if (values == null)
+            {
+                if (LOG) Console.WriteLine("Bad values, skipping");
+                return;
+            }
+
             var response = PushData(values);
-            if (LOG) Console.WriteLine(JsonConvert.SerializeObject(response,Formatting.Indented));
+            if (LOG) Console.WriteLine(JsonConvert.SerializeObject(response));
         }
 
         private static BatchUpdateValuesResponse PushData(int[] values, bool ignoredatevalidation = false)
@@ -79,7 +100,7 @@ namespace GFL_OCR_RSC_Tracker
             var response = conn.UpdateData(
                 cfg.SheetName,
                 cfg.PushToColumn,
-                cfg.LastPushLine+1,
+                cfg.LastPushLine + 1,
                 new List<IList<object>>()
                 {
                     ToIn
@@ -111,7 +132,7 @@ namespace GFL_OCR_RSC_Tracker
             }));
         }
 
-        private static int[] ParseValues(string a)
+        public static int[] ParseImageValues(string a)
         {
             if (LOG) Console.WriteLine("Tesseract saw: " + a);
             Regex p = new Regex(@"(\d{1,6})\s(\d{1,6})\s(\d{1,6})\s(\d{1,6})");
@@ -125,7 +146,7 @@ namespace GFL_OCR_RSC_Tracker
             return ret;
         }
 
-        private static string GetValuesFromImg()
+        public static string GetValuesFromImg(bool AR15 = false)
         {
             var testImagePath = "Capture.png";
             var engine = new TesseractEngine(@"./tessdata", "eng", EngineMode.Default);
@@ -133,6 +154,8 @@ namespace GFL_OCR_RSC_Tracker
             var page = engine.Process(img);
             var text = page.GetText();
             if (LOG) Console.WriteLine("Mean confidence: {0}", page.GetMeanConfidence());
+
+            if (AR15) File.Delete(testImagePath);
 
             return text.Replace('\n', ' ').Replace("  ", " ");
         }
@@ -163,18 +186,6 @@ namespace GFL_OCR_RSC_Tracker
             CaptureArea();
             if (HangOnCapturedBound) ShowCapture();
             if (RSCTracker.LOG) Console.WriteLine(generatedBounds);
-        }
-        public void RecaptureArea()
-        {
-            if (generatedBounds != null)
-            {
-                CaptureArea();
-                if (HangOnCapturedBound) ShowCapture();
-            }
-            else
-            {
-                throw new InvalidOperationException("Use CreateFinder to determine bounds first");
-            }
         }
 
         private void CaptureArea()
@@ -213,6 +224,20 @@ namespace GFL_OCR_RSC_Tracker
         {
             Form finder = (Form)sender;
             generatedBounds = finder.RectangleToScreen(finder.ClientRectangle);
+        }
+
+        public int[] GetValuesFromBound()
+        {
+            if (generatedBounds != null)
+            {
+                CaptureArea();
+                if (HangOnCapturedBound) ShowCapture();
+                return RSCTracker.ParseImageValues(RSCTracker.GetValuesFromImg());
+            }
+            else
+            {
+                throw new InvalidOperationException("Use CreateFinder to determine bounds first");
+            }
         }
     }
 }
