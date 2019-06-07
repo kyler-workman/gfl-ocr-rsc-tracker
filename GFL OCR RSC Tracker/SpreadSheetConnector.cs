@@ -2,13 +2,8 @@
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
-using Newtonsoft.Json;
-using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace GFL_OCR_RSC_Tracker
 {
@@ -55,10 +50,8 @@ namespace GFL_OCR_RSC_Tracker
             requestBody.Data = updateData;
 
             var request = SheetsService.Spreadsheets.Values.BatchUpdate(requestBody, SpreadsheetId);
-
-            BatchUpdateValuesResponse response = request.Execute();
-
-            return response;
+            
+            return request.Execute();
         }
     }
 }
