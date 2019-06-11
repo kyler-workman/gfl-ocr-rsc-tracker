@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 using Tesseract;
@@ -53,7 +52,11 @@ namespace GFL_OCR_RSC_Tracker
                     ToFile(b.GeneratedBounds.ToString());
                     ToFile("Starting parsing");
                     values = b.GetValuesFromBound();
-                    if (values == null) ToFile("Couldn't find values, reopening capture window");
+                    if (values == null)
+                    {
+                        ToFile("Couldn't find values, reopening capture window");
+                        if (MessageBox.Show("Could not find resource values, retry capture?", "Error finding values", MessageBoxButtons.YesNo) == DialogResult.No) Environment.Exit(0);
+                    }
                 }
 
                 DialogResult r = MessageBox.Show("Manpower\tAmmo\t\tRations\t\tParts\n" + values[0] + "\t\t" + values[1] + "\t\t" + values[2] + "\t\t" + values[3]
@@ -162,21 +165,6 @@ namespace GFL_OCR_RSC_Tracker
             }
             cfg.UpdateConfig();
             return response;
-        }
-
-        public static int[] ParseImageValues(string a)
-        {
-            ToFile("Tesseract saw: " + a);
-            Regex p = new Regex(@"(\d{1,6})\s(\d{1,6})\s(\d{1,6})\s(\d{1,6})");
-            if (!p.IsMatch(a)) return null;
-            Match m = p.Match(a);
-            int[] ret = new int[4];
-            for (int i = 1; i <= 4; i++)
-            {
-                ret[i - 1] = int.Parse(m.Groups[i].Value);
-            }
-            ToFile("Values parsed to " + ret[0] + " " + ret[1] + " " + ret[2] + " " + ret[3]);
-            return ret;
         }
 
         public static string GetValuesFromImg(bool AR15 = false)

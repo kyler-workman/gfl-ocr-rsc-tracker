@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
 namespace GFL_OCR_RSC_Tracker
@@ -20,8 +21,8 @@ namespace GFL_OCR_RSC_Tracker
             {
                 Width = 882,
                 Height = 103,
-                BackColor = System.Drawing.Color.Firebrick,
-                TransparencyKey = System.Drawing.Color.Firebrick,
+                BackColor = Color.Firebrick,
+                TransparencyKey = Color.Firebrick,
                 Text = "Drag this over your main menu resource values, close to capture area, this can also be resized"
             };
             boundsFinder.FormClosing += GetFormBounds;
@@ -41,9 +42,9 @@ namespace GFL_OCR_RSC_Tracker
             {
                 for (int y = 0; y < captureBmp.Height; y++)
                 {
-                    System.Drawing.Color pixelColor = captureBmp.GetPixel(x, y);
+                    Color pixelColor = captureBmp.GetPixel(x, y);
                     int value = pixelColor.R > 220 && pixelColor.B < 20 ? 255 : 0;
-                    System.Drawing.Color newColor = System.Drawing.Color.FromArgb(value, value, value);
+                    Color newColor = Color.FromArgb(value, value, value);
                     captureBmp.SetPixel(x, y, newColor);
                 }
             }
@@ -74,12 +75,27 @@ namespace GFL_OCR_RSC_Tracker
             {
                 CaptureArea();
                 if (HangOnCapturedBound) ShowCapture();
-                return RSCTracker.ParseImageValues(RSCTracker.GetValuesFromImg(RSCTracker.KILLIMAGE));
+                return ParseImageValues(RSCTracker.GetValuesFromImg(RSCTracker.KILLIMAGE));
             }
             else
             {
                 throw new InvalidOperationException("Use CreateFinder to determine bounds first");
             }
+        }
+        
+        public static int[] ParseImageValues(string a)
+        {
+            RSCTracker.ToFile("Tesseract saw: " + a);
+            Regex p = new Regex(@"(\d{1,6})\s(\d{1,6})\s(\d{1,6})\s(\d{1,6})");
+            if (!p.IsMatch(a)) return null;
+            Match m = p.Match(a);
+            int[] ret = new int[4];
+            for (int i = 1; i <= 4; i++)
+            {
+                ret[i - 1] = int.Parse(m.Groups[i].Value);
+            }
+            RSCTracker.ToFile("Values parsed to " + ret[0] + " " + ret[1] + " " + ret[2] + " " + ret[3]);
+            return ret;
         }
     }
 }
