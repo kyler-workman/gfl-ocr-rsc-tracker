@@ -27,7 +27,7 @@ namespace GFL_OCR_RSC_Tracker
         {
             var waitHandle = new EventWaitHandle(false, EventResetMode.AutoReset, "GFL-OCR-RSC-Tracker", out bool createdNew);
             var signaled = false;
-            
+
             if (!createdNew)
             {
                 waitHandle.Set();
@@ -71,7 +71,7 @@ namespace GFL_OCR_RSC_Tracker
             Pusher.Interval = 1000 * 60 * 1; //1 minute interval
 
             Adjutant = new System.Timers.Timer();
-            Adjutant.Elapsed += StaryTrying;
+            Adjutant.Elapsed += StartTrying;
             Adjutant.Interval = (DateTime.Today.AddDays(1) - DateTime.Now).TotalMilliseconds; //runs midnight tomorrow
             Adjutant.AutoReset = false;
             Adjutant.Start();
@@ -85,7 +85,7 @@ namespace GFL_OCR_RSC_Tracker
             } while (!signaled);
         }
 
-        private static void StaryTrying(object s, ElapsedEventArgs a)
+        private static void StartTrying(object s, ElapsedEventArgs a)
         {
             Pusher.Start();
         }
@@ -101,11 +101,11 @@ namespace GFL_OCR_RSC_Tracker
 
             var response = PushData(values);
             if (LOG) Console.WriteLine(JsonConvert.SerializeObject(response));
-            if (response!=null &&response.TotalUpdatedCells != null && response.TotalUpdatedCells > 0)
+            if (response != null && response.TotalUpdatedCells != null && response.TotalUpdatedCells > 0)
             {
                 Pusher.Stop();
                 Adjutant.Stop();
-                Adjutant.Interval= (DateTime.Today.AddDays(1) - DateTime.Now).TotalMilliseconds;
+                Adjutant.Interval = (DateTime.Today.AddDays(1) - DateTime.Now).TotalMilliseconds;
                 Adjutant.Start();
             }
         }
@@ -122,6 +122,9 @@ namespace GFL_OCR_RSC_Tracker
 
             List<object> ToIn = new List<object>() { now.ToShortDateString() };
             ToIn.AddRange(values.Cast<object>());
+            ToIn.Add("");
+            ToIn.Add("Auto push at " + now.ToString("H:mm"));
+
             var response = conn.UpdateData(
                 cfg.SheetName,
                 cfg.PushToColumn,
@@ -138,7 +141,7 @@ namespace GFL_OCR_RSC_Tracker
             cfg.UpdateConfig();
             return response;
         }
-        
+
         public static int[] ParseImageValues(string a)
         {
             if (LOG) Console.WriteLine("Tesseract saw: " + a);
