@@ -17,6 +17,9 @@ namespace GFL_OCR_RSC_Tracker
         public static bool LOG = false;
         public static TrackerConfig cfg;
 
+        public static System.Timers.Timer Adjutant;
+        public static System.Timers.Timer Pusher;
+
         public const bool KILLIMAGE = true;
 
         [STAThread]
@@ -63,17 +66,28 @@ namespace GFL_OCR_RSC_Tracker
                 accepted = r == DialogResult.Yes;
             }
 
-            System.Timers.Timer adjutant = new System.Timers.Timer();
-            adjutant.Elapsed += (s, a) => TryWrite(s, a, b);
-            adjutant.Interval = 1000 * 60 * 60 * 1; //60 minute interval
+            Pusher = new System.Timers.Timer();
+            Pusher.Elapsed += (s, a) => TryWrite(s, a, b);
+            Pusher.Interval = 1000 * 60 * 1; //1 minute interval
+
+            Adjutant = new System.Timers.Timer();
+            Adjutant.Elapsed += StaryTrying;
+            Adjutant.Interval = (DateTime.Today.AddDays(1) - DateTime.Now).TotalMilliseconds; //runs midnight tomorrow
+            Adjutant.AutoReset = false;
+            Adjutant.Start();
+
 
             TryWrite(null, null, b);
-            adjutant.Start();
 
             do
             {
                 signaled = waitHandle.WaitOne();
             } while (!signaled);
+        }
+
+        private static void StaryTrying(object s, ElapsedEventArgs a)
+        {
+            Pusher.Start();
         }
 
         private static void TryWrite(object sender, ElapsedEventArgs e, BoundsCapturer b)
@@ -87,6 +101,13 @@ namespace GFL_OCR_RSC_Tracker
 
             var response = PushData(values);
             if (LOG) Console.WriteLine(JsonConvert.SerializeObject(response));
+            if (response!=null &&response.TotalUpdatedCells != null && response.TotalUpdatedCells > 0)
+            {
+                Pusher.Stop();
+                Adjutant.Stop();
+                Adjutant.Interval= (DateTime.Today.AddDays(1) - DateTime.Now).TotalMilliseconds;
+                Adjutant.Start();
+            }
         }
 
         private static BatchUpdateValuesResponse PushData(int[] values, bool ignoredatevalidation = false)
