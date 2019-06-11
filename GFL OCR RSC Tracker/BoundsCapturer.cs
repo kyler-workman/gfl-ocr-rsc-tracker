@@ -6,7 +6,7 @@ namespace GFL_OCR_RSC_Tracker
 {
     class BoundsCapturer
     {
-        private Rectangle generatedBounds;
+        public Rectangle GeneratedBounds { get; set; }
         public bool HangOnCapturedBound { get; set; }
 
         public BoundsCapturer(bool hangOnCapturedBound = false)
@@ -28,14 +28,13 @@ namespace GFL_OCR_RSC_Tracker
             Application.Run(boundsFinder);
             CaptureArea();
             if (HangOnCapturedBound) ShowCapture();
-            if (RSCTracker.LOG) Console.WriteLine(generatedBounds);
         }
 
         private void CaptureArea()
         {
-            Bitmap captureBmp = new Bitmap(generatedBounds.Width, generatedBounds.Height);
+            Bitmap captureBmp = new Bitmap(GeneratedBounds.Width, GeneratedBounds.Height);
             Graphics g = Graphics.FromImage(captureBmp);
-            g.CopyFromScreen(generatedBounds.X, generatedBounds.Y, 0, 0, generatedBounds.Size);
+            g.CopyFromScreen(GeneratedBounds.X, GeneratedBounds.Y, 0, 0, GeneratedBounds.Size);
 
             //butchers this fucking image
             for (int x = 0; x < captureBmp.Width; x++)
@@ -56,22 +55,22 @@ namespace GFL_OCR_RSC_Tracker
             Pen pen = new Pen(Brushes.Red, 2);
             Graphics gr = Graphics.FromHwnd(IntPtr.Zero);
 
-            Console.WriteLine(generatedBounds);
+            Console.WriteLine(GeneratedBounds);
             while (1 > 0)
             {
-                gr.DrawRectangle(pen, generatedBounds);
+                gr.DrawRectangle(pen, GeneratedBounds);
             }
         }
 
         private void GetFormBounds(object sender, FormClosingEventArgs e)
         {
             Form finder = (Form)sender;
-            generatedBounds = finder.RectangleToScreen(finder.ClientRectangle);
+            GeneratedBounds = finder.RectangleToScreen(finder.ClientRectangle);
         }
 
         public int[] GetValuesFromBound()
         {
-            if (generatedBounds != null)
+            if (GeneratedBounds != null)
             {
                 CaptureArea();
                 if (HangOnCapturedBound) ShowCapture();

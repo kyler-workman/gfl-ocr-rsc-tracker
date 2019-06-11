@@ -14,7 +14,7 @@ namespace GFL_OCR_RSC_Tracker
 {
     class RSCTracker
     {
-        public static bool LOG = false;
+        public static string LogFile;
         public static TrackerConfig cfg;
 
         public static System.Timers.Timer Adjutant;
@@ -34,7 +34,10 @@ namespace GFL_OCR_RSC_Tracker
                 return;
             }
 
-            LOG = args.Contains("log");
+            LogFile = "logs\\" + DateTime.Now.ToString("yyyyMMddHHmmss") + ".txt";
+            Directory.CreateDirectory("logs");
+            File.Create(LogFile).Dispose();
+
             cfg = TrackerConfig.GetConfig();
             BoundsCapturer b = new BoundsCapturer();
 
@@ -47,17 +50,10 @@ namespace GFL_OCR_RSC_Tracker
                 while (values == null)
                 {
                     b.CreateFinder();
-                    if (LOG) Console.WriteLine("starting parsing");
+                    ToFile(b.GeneratedBounds.ToString());
+                    ToFile("Starting parsing");
                     values = b.GetValuesFromBound();
-                    if (values == null && LOG) Console.WriteLine("Couldn't find values, reopening capture window");
-                }
-                if (LOG)
-                {
-                    Array.ForEach(values, x =>
-                    {
-                        Console.Write(x + " ");
-                    });
-                    Console.WriteLine();
+                    if (values == null) ToFile("Couldn't find values, reopening capture window");
                 }
 
                 DialogResult r = MessageBox.Show("Manpower\tAmmo\t\tRations\t\tParts\n" + values[0] + "\t\t" + values[1] + "\t\t" + values[2] + "\t\t" + values[3]
@@ -85,6 +81,23 @@ namespace GFL_OCR_RSC_Tracker
             } while (!signaled);
         }
 
+        public static void ToFile(string str)
+        {
+            try
+            {
+
+                using (StreamWriter w = File.AppendText(LogFile))
+                {
+                    w.WriteLine(DateTime.Now.ToLongTimeString() + " " + DateTime.Now.ToLongDateString() + " : " + str);
+                    w.Close();
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+        }
+
         private static void StartTrying(object s, ElapsedEventArgs a)
         {
             Pusher.Start();
@@ -95,18 +108,27 @@ namespace GFL_OCR_RSC_Tracker
             int[] values = b.GetValuesFromBound();
             if (values == null)
             {
-                if (LOG) Console.WriteLine("Bad values, skipping");
+                ToFile("Bad values, skipping");
                 return;
             }
 
-            var response = PushData(values);
-            if (LOG) Console.WriteLine(JsonConvert.SerializeObject(response));
-            if (response != null && response.TotalUpdatedCells != null && response.TotalUpdatedCells > 0)
+            try
             {
-                Pusher.Stop();
-                Adjutant.Stop();
-                Adjutant.Interval = (DateTime.Today.AddDays(1) - DateTime.Now).TotalMilliseconds;
-                Adjutant.Start();
+                var response = PushData(values);
+                ToFile(JsonConvert.SerializeObject(response));
+                if (response != null && response.TotalUpdatedCells != null && response.TotalUpdatedCells > 0)
+                {
+                    Pusher.Stop();
+                    Adjutant.Stop();
+                    Adjutant.Interval = (DateTime.Today.AddDays(1) - DateTime.Now).TotalMilliseconds;
+                    Adjutant.Start();
+                }
+            }
+            catch (Exception ex)
+            {
+                ToFile(ex.Message);
+                ToFile("Config file uninitialized");
+                Environment.Exit(1);
             }
         }
 
@@ -116,7 +138,7 @@ namespace GFL_OCR_RSC_Tracker
             DateTime now = DateTime.Now;
             if (!ignoredatevalidation && now < cfg.LastPushDate.AddDays(1).Date)
             {
-                if (LOG) Console.WriteLine("Day has not passed, not writing to Sheet");
+                ToFile("Day has not passed, not writing to Sheet");
                 return null;
             }
 
@@ -144,7 +166,7 @@ namespace GFL_OCR_RSC_Tracker
 
         public static int[] ParseImageValues(string a)
         {
-            if (LOG) Console.WriteLine("Tesseract saw: " + a);
+            ToFile("Tesseract saw: " + a);
             Regex p = new Regex(@"(\d{1,6})\s(\d{1,6})\s(\d{1,6})\s(\d{1,6})");
             if (!p.IsMatch(a)) return null;
             Match m = p.Match(a);
@@ -153,6 +175,7 @@ namespace GFL_OCR_RSC_Tracker
             {
                 ret[i - 1] = int.Parse(m.Groups[i].Value);
             }
+            ToFile("Values parsed to " + ret[0] + " " + ret[1] + " " + ret[2] + " " + ret[3]);
             return ret;
         }
 
@@ -163,7 +186,7 @@ namespace GFL_OCR_RSC_Tracker
             var img = Pix.LoadFromFile(testImagePath);
             var page = engine.Process(img);
             var text = page.GetText();
-            if (LOG) Console.WriteLine("Mean confidence: {0}", page.GetMeanConfidence());
+            ToFile("Mean confidence: " + page.GetMeanConfidence());
 
             if (AR15) File.Delete(testImagePath);
 
